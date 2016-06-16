@@ -4,6 +4,18 @@ import namespace as util
 import time
 from minimalmodbus import *
 
+
+"""
+.. moduleauthors:: Damiano Di Stefano <damiano.di.stefano@gmail.com>, Marco Giuseppe Salafia <marco.salafia@gmail.com>
+4noks_device: A simple daemon written in python for polling 4noks devices based on Modbus protocol. It's necessary
+                downloading minimalmodbus.
+"""
+
+__authors__   = ['Damiano Di Stefano', 'Marco Giuseppe Salafia']
+__email__    = ['damiano.di.stefano@gmail.com', 'marco.salafia@gmail.com']
+__url__      = 'https://github.com/Andorath/4noks_daemon'
+
+
 emptyDict = {   "+": None,
                 "-": None,
                 "%": None,
