@@ -1,33 +1,14 @@
-"""
-.. moduleauthors:: Damiano Di Stefano <damiano.di.stefano@gmail.com>, Marco Giuseppe Salafia <marco.salafia@gmail.com>
-4noks_device: A simple daemon written in python for polling 4noks devices based on Modbus protocol. It's necessary
-                downloading minimalmodbus.
-"""
-
-__authors__   = ['Damiano Di Stefano', 'Marco Giuseppe Salafia']
-__email__    = ['damiano.di.stefano@gmail.com', 'marco.salafia@gmail.com']
-__url__      = 'https://github.com/Andorath/4noks_daemon'
-
 INTERFACE = "/dev/ttyUSB0"
-BHOST = "localhost"
+BHOST = "192.168.1.8"
 BPORT = 1883
 COMMAND_TOPIC = "Lagarto-SWAP/simple/control/4noks/command"
 STATUS_TOPIC = "Lagarto-SWAP/json/status"
-ALARM_TOPIC = '/4noks/alarm'
 
 '''
  Struttura device
 '''
 
 device_t = ["Plug", "Therm", "Sonda", "Instrument"]
-
-wrapperJSON =   {
-                    '4noks' :   { 
-                                'status' : None, 
-                                'timestamp' : None, 
-                                'address_source' : None                                 
-                                } 
-                }
 
 thermKeylist = 	["Type",
 		"Firmware_version",
@@ -49,10 +30,10 @@ plugKeyList = [ "Type",
                 "Level_radio_signal_last_message",
                 "Energy_meter_calibration_parameter",
                 "Active_power",
-                "Energy_consumed_(high)",
-                "Energy_consumed_(low)",
-                "Measurement_time_(hight)",
-                "Measurement_time_(low)",
+                "Energy_consumed_high",
+                "Energy_consumed_low",
+                "Measurement_time_high",
+                "Measurement_time_low",
                 "Seconds_to_last_message",
                 "Counter_of_messages_received_from_gateway",
                 "Gateway_receiving_instant_time",

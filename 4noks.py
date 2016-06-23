@@ -1,15 +1,5 @@
 #!/usr/bin/env python 
 
-"""
-.. moduleauthors:: Damiano Di Stefano <damiano.di.stefano@gmail.com>, Marco Giuseppe Salafia <marco.salafia@gmail.com>
-4noks_device: A simple daemon written in python for polling 4noks devices based on Modbus protocol. It's necessary
-				downloading minimalmodbus.
-"""
-
-__authors__   = ['Damiano Di Stefano', 'Marco Giuseppe Salafia']
-__email__    = ['damiano.di.stefano@gmail.com', 'marco.salafia@gmail.com']
-__url__      = 'https://github.com/Andorath/4noks_daemon'
-
 import paho.mqtt.client as mqtt
 import getopt
 import time
@@ -101,12 +91,12 @@ def usage():
 def pubTempMoreThan(newValue, therm):
     if therm.upperTempThresholdCount <= 3:
         publish("La temperatura di [" + str(therm.address) +"] ha superato la soglia massima impostata di "+ therm.alarms["Temp"]["+"] + " raggiungendo il valore di " + str(newValue))
-        publish(therm.readDevice(channel='alarm'))
+        publish(therm.readDevice())
 
 def pubTempLessThan(newValue, therm):
     if therm.lowerTempThresholdCount <= 3:
         publish("La temperatura di [" + str(therm.address) +"] ha superato la soglia minima impostata di " + therm.alarms["Temp"]["-"]  + " raggiungendo il valore di " + str(newValue))
-        publish(therm.readDevice(channel='alarm'))
+        publish(therm.readDevice())
 
 def pubTempPercentage(newValue, therm):
         publish("La temperatura di [" + str(therm.address) +"] e' variata del "+ therm.alarms["Temp"]["%"]  + "% raggiungendo il valore di " + str(newValue))
@@ -116,12 +106,12 @@ def pubTempPercentage(newValue, therm):
 def pubHumMoreThan(newValue, therm):
     if therm.upperHumThresholdCount <= 3:
         publish("L'umidita' di [" + str(therm.address) +"] ha superato la soglia massima impostata di " + therm.alarms["Hum"]["+"]  + " raggiungendo il valore di " + str(newValue))
-        publish(therm.readDevice(channel='alarm'))
+        publish(therm.readDevice())
 
 def pubHumLessThan(newValue, therm):
     if therm.lowerHumThresholdCount <= 3:
         publish("L'umidita' di [" + str(therm.address) +"] ha superato la soglia minima impostata di " + therm.alarms["Hum"]["-"] + " raggiungendo il valore di " + str(newValue))
-        publish(therm.readDevice(channel='alarm'))
+        publish(therm.readDevice())
 
 def pubHumPercentage(newValue, therm): 
     publish("L'umidita' di [" + str(therm.address) +"] e' variata del "+ therm.alarms["Hum"]["%"] + "% raggiungendo il valore di " + str(newValue))
@@ -130,12 +120,12 @@ def pubHumPercentage(newValue, therm):
 def pubVoltMoreThan(newValue, therm):
     if therm.upperVoltThresholdCount <= 3:
         publish("Il voltaggio di [" + str(therm.address) +"] ha superato la soglia massima impostata di "+ therm.alarms["Volt"]["+"]  + " raggiungendo il valore di " + str(newValue))
-        publish(therm.readDevice(channel='alarm'))
+        publish(therm.readDevice())
 
 def pubVoltLessThan(newValue, therm): 
     if therm.lowerVoltThresholdCount <= 3:
         publish("Il voltggio di [" + str(therm.address) +"] ha superato la soglia minima impostata di " + therm.alarms["Volt"]["-"] + " raggiungendo il valore di " + str(newValue))
-        publish(therm.readDevice(channel='alarm'))
+        publish(therm.readDevice())
 
 def pubVoltPercentage(newValue, therm): 
     publish("Il voltaggio di [" + str(therm.address) +"] e' variato del " + therm.alarms["Volt"]["%"]  +  "% raggiungendo il valore di " + str(newValue))
@@ -144,19 +134,17 @@ def pubVoltPercentage(newValue, therm):
 def pubWattMoreThan(newValue, plug): 
     if plug.upperWattThresholdCount <= 3:
         publish("Il carico [W] di [" + str(plug.address) +"] ha superato la soglia massima impostata di " + plug.alarms["Watt"]["+"] + " raggiungendo il valore di " + str(newValue))
-        publish(plug.readDevice(channel='alarm'))
+        publish(plug.readDevice())
 
 
 def pubWattLessThan(newValue, plug): 
     if plug.lowerWattThresholdCount <= 3:
         publish("Il carico [W] di [" + str(plug.address) +"] ha superato la soglia minima impostata di " + plug.alarms["Watt"]["-"] + " raggiungendo il valore di " + str(newValue))
-        publish(plug.readDevice(channel='alarm'))
+        publish(plug.readDevice())
 
 def pubWattPercentage(newValue, plug):
-    
     publish("Il carico [W] di [" + str(plug.address) +"] e' variato del " + plug.alarms["Watt"]["%"]  +  "% raggiungendo il valore di " + str(newValue))
-    publish(plug.readDevice(channel='alarm'))
-
+    publish(plug.readDevice())
 
 
 publishCallbackDict =   {
@@ -183,19 +171,13 @@ publishCallbackDict =   {
                             }
                     } 
 
-def getPublishCallback(k_e, k_i):
-    return publishCallbackDict[k_e][k_i]
-
 def publish(msg):
     client.publish(STATUS_TOPIC, msg)
 
-def publishAlarm(alarm):
-    client.publish(ALARM_TOPIC, alarm)
-
 def splitCommand(command):
-    splitted = command.split("_")
-    if len(splitted) > 1: splitted[1] = int(splitted[1])
-    return [splitted[0], tuple(splitted[1:])]
+	splitted = command.split("_")
+	if len(splitted) > 1: splitted[1] = int(splitted[1])
+	return [splitted[0], tuple(splitted[1:])]
 
 def setAddress(address, deviceType):
 
@@ -289,6 +271,13 @@ def closeGateway():
     gateway.write_bit(0, 1)
     publish("Closing Network...")
 
+def readAllDevice():
+    for dev in devices:
+        readDevice(dev.address)
+
+def getAlarms(deviceAddress):
+	device = devices[deviceAddress]
+	publish(device.getAlarms())
 
 '''
     Dizionario dei comandi disponibili
@@ -303,7 +292,9 @@ commands =  {   "setAddress"    :   setAddress,
                 "setHumAlarm"   :   setHumAlarm,
                 "setVoltAlarm"  :   setVoltAlarm,
                 "openGateway"   :   openGateway,
-                "closeGateway"  :   closeGateway
+                "closeGateway"  :   closeGateway,
+                "readAllDevice" :   readAllDevice,
+				"getAlarms"		:	getAlarms
             }
 
 ''' POLLING '''
@@ -358,7 +349,7 @@ def on_connect(client, userdata, rc):
 
 def on_message(client, userdata, message):
     try:
-        cmd_str, args = splitCommand(str(message.payload))
+       	cmd_str, args = splitCommand(str(message.payload))
         if cmd_str in commands.keys():
             cmd = commands.get(cmd_str)
             cmd(*args)
@@ -368,16 +359,17 @@ def on_message(client, userdata, message):
         publish(str(err))
     except DeviceAddressUnknownException, err:
         publish(str(err))
-    except ValueError:
-        publish("Please try again.")
+    except ValueError, err:
+		print(str(err))
+		publish("Please try again.")
 
    
 ''' 
     MAIN
 '''
 if __name__ == "__main__":
-    devices = getDevicesFromFile()
     client = initialize_client(sys.argv[1:])
+    devices = getDevicesFromFile()
     while True:
         client.loop()
         scanPlugs()

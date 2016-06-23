@@ -4,18 +4,6 @@ import namespace as util
 import time
 from minimalmodbus import *
 
-
-"""
-.. moduleauthors:: Damiano Di Stefano <damiano.di.stefano@gmail.com>, Marco Giuseppe Salafia <marco.salafia@gmail.com>
-4noks_device: A simple daemon written in python for polling 4noks devices based on Modbus protocol. It's necessary
-                downloading minimalmodbus.
-"""
-
-__authors__   = ['Damiano Di Stefano', 'Marco Giuseppe Salafia']
-__email__    = ['damiano.di.stefano@gmail.com', 'marco.salafia@gmail.com']
-__url__      = 'https://github.com/Andorath/4noks_daemon'
-
-
 emptyDict = {   "+": None,
                 "-": None,
                 "%": None,
@@ -23,90 +11,84 @@ emptyDict = {   "+": None,
 
 class Plug(Instrument):
 
-    #alarms = None
+	def __init__(self, port, addr):
+		self.alarms = {"Watt": emptyDict.copy()}
+		self.relayStatus = ""
+		self.upperWattThresholdCount = 0
+		self.lowerWattThresholdCount = 0
+		self.wattStatus = None
+		Instrument.__init__(self, port, addr)
+
+	def setRelay(self, status):
+		register = 1 if int(status) == 1 else 2
+		self.write_bit(register, 1)
     
-    def __init__(self, port, addr):
-        self.alarms = {"Watt": emptyDict.copy()}
-        self.relayStatus = ""
-        self.upperWattThresholdCount = 0
-        self.lowerWattThresholdCount = 0
-        self.wattStatus = None
+	def isRelayChanged(self):
+		status = "Acceso" if self.read_bit(0) else "Spento"
+		if status != self.relayStatus:
+			self.relayStatus = status
+			return(True, status)
+		return(False, None)
 
-        Instrument.__init__(self, port, addr)
-
-    def setRelay(self, status):
-        register = 1 if int(status) == 1 else 2
-        self.write_bit(register, 1)
+	def setAddress(self, interface, address):
+		tmp_plug = Instrument(interface, 127)
+		tmp_plug.write_register(0, 6521, functioncode=6)
+		tmp_plug.write_register(2, address, functioncode=6)
+		tmp_plug.write_bit(0, 1)
     
-    def isRelayChanged(self):
-        status = "Acceso" if self.read_bit(0) else "Spento"
-        if status != self.relayStatus:
-            self.relayStatus = status
-            return(True, status)
-        return(False, None)
+	def readDevice(self, channel='status'):
+		valueList = self.read_registers(0, 15, functioncode=4)
+		valueList.append(self.read_bit(0))
+		valueList.append(self.read_bit(1))
+		valueList.append(self.read_bit(13))
+		return buildJSON(zip(util.plugKeyList, map(str, valueList)), str(self.address), channel)
 
-    def setAddress(self, interface, address):
-        tmp_plug = Instrument(interface, 127)
-        tmp_plug.write_register(0, 6521, functioncode=6)
-        tmp_plug.write_register(2, address, functioncode=6)
-        tmp_plug.write_bit(0, 1)
-    
+	def isWattMoreThan(self, value):
+		newWatt = self.read_register(5, functioncode=4)
+		isMore = newWatt > value 
+		self.upperWattThresholdCount = self.upperWattThresholdCount + 1 if isMore else 0
+		return (isMore, newWatt)
 
-    def readDevice(self, channel='status'):
-        valueList = self.read_registers(0, 15, functioncode=4)
-        valueList.append(self.read_bit(0))
-        valueList.append(self.read_bit(1))
-        valueList.append(self.read_bit(13))
-        return buildJSON(zip(util.plugKeyList, valueList), self.address, channel)
+	def isWattLessThan(self, value):
+		newWatt = self.read_register(5, functioncode=4)
+		isLess = newWatt < value 
+		self.lowerWattThresholdCount = self.lowerWattThresholdCount + 1 if isLess else 0
+		return (isLess, newWatt)
 
-    def isWattMoreThan(self, value):
-        newWatt = self.read_register(5, functioncode=4)
-        isMore = newWatt > value 
-        self.upperWattThresholdCount = self.upperWattThresholdCount + 1 if isMore else 0
-        return (isMore, newWatt)
+	def isWattChanged(self, percentage):
+		newWatt = self.read_register(5, functioncode=4)
+		if self.wattStatus == None or abs(newWatt - self.wattStatus) > (percentage / 100) * self.wattStatus:
+			self.wattStatus = newWatt
+			return (True, newWatt)
+		else:
+			return (False, newWatt)
 
-    def isWattLessThan(self, value):
-        newWatt = self.read_register(5, functioncode=4)
-        isLess = newWatt < value 
-        self.lowerWattThresholdCount = self.lowerWattThresholdCount + 1 if isLess else 0
-        return (isLess, newWatt)
+	callbackDict = 	{"Watt": {"+": isWattMoreThan,"-": isWattLessThan,"%": isWattChanged}}
 
-    def isWattChanged(self, percentage):
-        newWatt = self.read_register(5, functioncode=4)
-        if self.wattStatus == None or abs(newWatt - self.wattStatus) > (percentage / 100) * self.wattStatus:
-            self.wattStatus = newWatt
-            return (True, newWatt)
-        else:
-            return (False, newWatt)
+	def checkAlarms(self):
+		resultDic = {}
+		for key in self.alarms.keys():
+			resultDic[key] = {}
+			for k,v in self.alarms[key].items():
+				if v is not None:
+					resultDic[key][k] = Plug.callbackDict[key][k](self,int(v))
+			resultDic[key] = dict((k,v) for k,v in resultDic[key].iteritems() if v[0] is True)
+		return resultDic
 
-    callbackDict = {    
-                        "Watt": {       
-                                "+": isWattMoreThan,
-                                "-": isWattLessThan,
-                                "%": isWattChanged
-                                }
-                    }
-    
-    def checkAlarms(self):
-        resultDic = {}
-        for key in self.alarms.keys():
-            resultDic[key] = {}
-            for k,v in self.alarms[key].items():
-                if v is not None:
-                    resultDic[key][k] = Plug.callbackDict[key][k](self,int(v))
-            resultDic[key] = dict((k,v) for k,v in resultDic[key].iteritems() if v[0] is True)
-        return resultDic
+	def getAlarms(self):
+		resultDict = dict((k,v) for k,v in self.alarms.iteritems() if v != None)
+		return buildJSON(resultDict, str(self.address), channel='alarms')
 
 class Therm(Instrument):
 
     def __init__(self, port, addr):
-        #self.alarms = dict.fromkeys(("Temp", "Hum", "Volt"), emptyDict.copy())
+        
         self.alarms =   {   "Temp": emptyDict.copy(),
                             "Hum": emptyDict.copy(),
                             "Volt": emptyDict.copy()
                         }
 
-        self.upperTempThresholdCount = 0
+       	self.upperTempThresholdCount = 0
         self.lowerTempThresholdCount = 0
         self.upperHumThresholdCount = 0
         self.lowerHumThresholdCount = 0
@@ -127,7 +109,7 @@ class Therm(Instrument):
     
     def readDevice(self, channel='status'):
         valueList = self.read_registers(0, 14, functioncode=4)
-        return buildJSON(zip(util.thermKeylist, valueList), self.address, channel)
+        return buildJSON(zip(util.thermKeylist, map(str, valueList)), str(self.address), channel)
     
     def isTempMoreThan(self, value):
         newTemp = self.read_register(6, functioncode=4)
@@ -231,17 +213,33 @@ class Therm(Instrument):
             for k,v in self.alarms[key].items():
                 if v is not None:
                     resultDic[key][k] = Therm.callbackDict[key][k](self,int(v))
-
             resultDic[key] = dict((k,v) for k,v in resultDic[key].iteritems() if v[0] is True)
         return resultDic
 
+    def getAlarms(self):
+		resultDict = dict((k,v) for k,v in self.alarms.iteritems() if v != None)
+		return buildJSON(resultDict, str(self.address), channel='alarms')
         
 class Sonda(Instrument):
 	pass
 
 def buildJSON(dict_values, addr, channel):
-    util.wrapperJSON['4noks'][channel] = dict_values
-    util.wrapperJSON['4noks']['timestamp'] = time.time()
-    util.wrapperJSON['4noks']['address_source'] = addr
-    return json.dumps(util.wrapperJSON,ensure_ascii='False')
-
+	'''
+	Il parametro channel non viene considerato in questo metodo.
+	Utilizzarlo se in futuro si decide di associare le informazioni
+	a chiavi diverse del dizionario.
+	'''
+	wrapperJSON =   {
+    	                '4noks' :   { 
+        	                        'timestamp' : None, 
+            	                    'address_source' : None                                 
+                	                } 
+					}
+	'''
+	Il parametro channel dovrebbe sostituire la chiave 'status'
+	di wrapperJSON['4noks']['status']
+	'''
+	wrapperJSON['4noks'][channel] = dict_values
+	wrapperJSON['4noks']['timestamp'] = int(time.time())
+	wrapperJSON['4noks']['address_source'] = addr
+	return json.dumps(wrapperJSON,ensure_ascii='False')
